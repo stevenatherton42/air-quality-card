@@ -1,0 +1,8 @@
+{
+  "name": "Air Quality Card",
+  "filename": "air-quality-card.js",
+  "type": "module",
+  "render_readme": true,
+  "domains": ["lovelace"],
+  "country": "worldwide"
+}
