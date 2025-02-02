@@ -104,5 +104,28 @@ class CompactAirQualityCard extends LitElement {
           <ha-icon class="icon" icon="mdi:thermometer"></ha-icon>
           <span class="value">${outdoorTemp}°C</span>
           <ha-icon class="icon" icon="mdi:water-percent"></ha-icon>
-          <span class="value">${outdoorHumidity
+          <span class="value">${outdoorHumidity}%</span>
+          <ha-icon class="icon" icon="mdi:weather-rainy"></ha-icon>
+          <span class="value">${rainChance}%</span>
+          <ha-icon class="icon" icon="mdi:flower"></ha-icon>
+          <span class="value">${pollen}</span>
+          <ha-icon class="icon" icon="mdi:weather-sunny"></ha-icon>
+          <span class="value ${uvColor}">${uv}</span>
+        </div>
 
+        <!-- Indoor Air Quality Section -->
+        <div class="row">
+          <ha-icon class="icon" icon="mdi:home"></ha-icon>
+          <ha-icon class="icon" icon="mdi:thermometer"></ha-icon>
+          <span class="value">${indoorTemp.toFixed(1)}°C</span>
+          <ha-icon class="icon" icon="mdi:water-percent"></ha-icon>
+          <span class="value">${indoorHumidity.toFixed(1)}%</span>
+          <ha-icon class="icon" icon="mdi:air-filter"></ha-icon>
+          <span class="value">${indoorPM25.toFixed(1)} µg/m³</span>
+        </div>
+      </div>
+    `;
+  }
+}
+
+customElements.define('compact-air-quality-card', CompactAirQualityCard);
