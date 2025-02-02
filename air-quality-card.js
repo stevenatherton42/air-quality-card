@@ -4,7 +4,6 @@ class AirQualityCard extends HTMLElement {
         this.attachShadow({ mode: "open" });
     }
 
-    // Required for Lovelace UI
     setConfig(config) {
         if (!config.weather_entity || !config.outdoor_temp || !config.outdoor_humidity || !config.chance_of_rain ||
             !config.pollen_count || !config.uv_index || !config.pm25_sensors || !config.temp_sensors || !config.humidity_sensors) {
@@ -46,34 +45,37 @@ class AirQualityCard extends HTMLElement {
                     margin-top: 10px;
                 }
                 .icon {
-                    width: 40px;
+                    width: 80px;
                     height: 40px;
-                    border-radius: 50%;
+                    border-radius: 12px;
                     background: rgba(255, 255, 255, 0.2);
                     display: flex;
                     align-items: center;
                     justify-content: center;
+                    font-size: 14px;
+                    padding: 4px;
                 }
                 ha-icon {
                     color: white;
-                    --mdc-icon-size: 24px;
+                    --mdc-icon-size: 20px;
+                    margin-right: 5px;
                 }
             </style>
             <ha-card class="card" id="card">
                 <div class="title">Weather & Air Quality</div>
                 <div class="weather-icon"><ha-icon id="weatherIcon"></ha-icon></div>
                 <div id="weatherState" class="value">Loading...</div>
-                <div id="outdoorData"></div>
+                <div id="outdoorData" class="value">Loading...</div>
+                <div id="indoorData" class="value">Loading...</div>
                 <div class="icons">
-                    <div class="icon"><ha-icon icon="mdi:weather-windy"></ha-icon></div>
-                    <div class="icon"><ha-icon icon="mdi:molecule-co2"></ha-icon></div>
-                    <div class="icon"><ha-icon icon="mdi:air-filter"></ha-icon></div>
+                    <div class="icon"><ha-icon icon="mdi:weather-windy"></ha-icon> AQI: <span id="aqiValue">N/A</span></div>
+                    <div class="icon"><ha-icon icon="mdi:thermometer"></ha-icon> <span id="avgIndoorTemp">N/A</span>°C</div>
+                    <div class="icon"><ha-icon icon="mdi:water-percent"></ha-icon> <span id="avgIndoorHumidity">N/A</span>%</div>
                 </div>
             </ha-card>
         `;
     }
 
-    // Fetch sensor values
     set hass(hass) {
         if (!this.config) return;
 
@@ -101,7 +103,17 @@ class AirQualityCard extends HTMLElement {
             🤧 ${pollenCount} Pollen | ☀️ UV ${uvIndex}
         `;
 
-        // Update background color based on PM2.5
+        // Update Indoor Data
+        this.shadowRoot.querySelector("#indoorData").innerHTML = `
+            🌡️ ${avgTemp}°C | 💧 ${avgHumidity}% | 🏭 PM2.5: ${avgPm25}
+        `;
+
+        // Update Icons
+        this.shadowRoot.querySelector("#aqiValue").textContent = avgPm25;
+        this.shadowRoot.querySelector("#avgIndoorTemp").textContent = avgTemp;
+        this.shadowRoot.querySelector("#avgIndoorHumidity").textContent = avgHumidity;
+
+        // Change background color based on AQI
         const card = this.shadowRoot.querySelector("#card");
         if (avgPm25 < 50) {
             card.style.background = "linear-gradient(135deg, #4CAF50, #2E7D32)"; // Green (Good)
@@ -114,7 +126,6 @@ class AirQualityCard extends HTMLElement {
         }
     }
 
-    // Convert weather states to mdi icons
     getWeatherIcon(state) {
         const icons = {
             "clear-night": "mdi:weather-night",
@@ -135,19 +146,18 @@ class AirQualityCard extends HTMLElement {
         return icons[state.toLowerCase()] || "mdi:weather-cloudy";
     }
 
-    // Calculate average of multiple sensors
     calculateAverage(hass, sensors) {
-        if (!sensors || sensors.length === 0) return 0;
-        let sum = 0;
-        let count = 0;
+        if (!sensors || !Array.isArray(sensors) || sensors.length === 0) return "N/A";
+        
+        let sum = 0, count = 0;
         sensors.forEach(sensor => {
-            const value = parseFloat(hass.states[sensor]?.state);
-            if (!isNaN(value)) {
-                sum += value;
+            if (hass.states[sensor] && !isNaN(hass.states[sensor].state)) {
+                sum += parseFloat(hass.states[sensor].state);
                 count++;
             }
         });
-        return count > 0 ? sum / count : 0;
+
+        return count > 0 ? (sum / count).toFixed(1) : "N/A";
     }
 
     getCardSize() {
@@ -156,16 +166,3 @@ class AirQualityCard extends HTMLElement {
 }
 
 customElements.define("air-quality-card", AirQualityCard);
-
-
-if (!customElements.get("air-quality-card-editor")) {
-    customElements.define("air-quality-card-editor", AirQualityCardEditor);
-}
-
-window.customCards = window.customCards || [];
-window.customCards.push({
-    type: "air-quality-card",
-    name: "Air Quality Card",
-    description: "Displays air quality and weather data.",
-});
-
