@@ -1,98 +1,108 @@
-class AirQualityCard extends HTMLElement {
-    constructor() {
-        super();
-        this.attachShadow({ mode: "open" });
+import { LitElement, html, css } from 'lit-element';
+import { styleMap } from 'lit-html/directives/style-map.js';
+
+class CompactAirQualityCard extends LitElement {
+  static get properties() {
+    return {
+      hass: {},
+      config: {},
+    };
+  }
+
+  static get styles() {
+    return css`
+      .card {
+        padding: 12px;
+        background: var(--card-background-color);
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .weather {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .weather-icon {
+        font-size: 32px;
+      }
+      .weather-details {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .icon {
+        font-size: 20px;
+      }
+      .value {
+        color: var(--primary-text-color);
+      }
+      .uv-high {
+        color: red;
+      }
+      .uv-low {
+        color: green;
+      }
+    `;
+  }
+
+  render() {
+    if (!this.hass || !this.config) {
+      return html``;
     }
 
-    setConfig(config) {
-        this.config = config;
+    const {
+      weather_entity,
+      outdoor_temp,
+      outdoor_humidity,
+      chance_of_rain,
+      pollen_count,
+      uv_index,
+      indoor_sensors,
+    } = this.config;
 
-        this.shadowRoot.innerHTML = `
-            <style>
-                .card {
-                    padding: 16px;
-                    border-radius: 16px;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    text-align: center;
-                    transition: background 0.3s ease;
-                    color: white;
-                    font-family: Arial, sans-serif;
-                }
-                .title {
-                    font-size: 18px;
-                    font-weight: bold;
-                }
-                .value {
-                    font-size: 24px;
-                    font-weight: bold;
-                    margin-top: 4px;
-                }
-                .icons {
-                    display: flex;
-                    gap: 10px;
-                    margin-top: 10px;
-                }
-                .icon {
-                    width: 40px;
-                    height: 40px;
-                    border-radius: 50%;
-                    background: rgba(255, 255, 255, 0.2);
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                }
-                ha-icon {
-                    color: white;
-                    --mdc-icon-size: 24px;
-                }
-            </style>
-            <ha-card class="card" id="card">
-                <div class="title">${config.title || "Air Quality"}</div>
-                <div class="value" id="aqiValue">Loading...</div>
-                <div class="icons">
-                    <div class="icon"><ha-icon icon="mdi:weather-windy"></ha-icon></div>
-                    <div class="icon"><ha-icon icon="mdi:molecule-co2"></ha-icon></div>
-                    <div class="icon"><ha-icon icon="mdi:air-filter"></ha-icon></div>
-                </div>
-            </ha-card>
-        `;
-    }
+    // Weather Data
+    const weatherState = this.hass.states[weather_entity].state;
+    const weatherIcon = this.hass.states[weather_entity].attributes.icon;
+    const outdoorTemp = this.hass.states[outdoor_temp].state;
+    const outdoorHumidity = this.hass.states[outdoor_humidity].state;
+    const rainChance = this.hass.states[chance_of_rain].state;
+    const pollen = this.hass.states[pollen_count].state;
+    const uv = this.hass.states[uv_index].state;
 
-    set hass(hass) {
-        if (!this.config) return;
+    // Indoor Data (Average)
+    const indoorTemp = indoor_sensors
+      .map((sensor) => parseFloat(this.hass.states[sensor.temp].state))
+      .reduce((a, b) => a + b, 0) / indoor_sensors.length;
 
-        // Get air quality sensor values
-        const outdoor = parseFloat(hass.states[this.config.outdoor_sensor]?.state) || 0;
-        const pm25 = parseFloat(hass.states[this.config.pm25_sensor]?.state) || 0;
-        const co2 = parseFloat(hass.states[this.config.co2_sensor]?.state) || 0;
-        const voc = parseFloat(hass.states[this.config.voc_sensor]?.state) || 0;
+    const indoorHumidity = indoor_sensors
+      .map((sensor) => parseFloat(this.hass.states[sensor.humidity].state))
+      .reduce((a, b) => a + b, 0) / indoor_sensors.length;
 
-        // Calculate an overall air quality index (simple avg for now)
-        let airQualityIndex = (outdoor + pm25 + co2 / 10 + voc / 10) / 4;
+    const indoorPM25 = indoor_sensors
+      .map((sensor) => parseFloat(this.hass.states[sensor.pm25].state))
+      .reduce((a, b) => a + b, 0) / indoor_sensors.length;
 
-        // Set AQI text
-        this.shadowRoot.querySelector("#aqiValue").textContent = `AQI: ${airQualityIndex.toFixed(1)}`;
+    // UV Index Color
+    const uvColor = uv > 5 ? 'uv-high' : 'uv-low';
 
-        // Change background color based on air quality
-        const card = this.shadowRoot.querySelector("#card");
-        if (airQualityIndex < 50) {
-            card.style.background = "linear-gradient(135deg, #4CAF50, #2E7D32)"; // Green (Good)
-        } else if (airQualityIndex < 100) {
-            card.style.background = "linear-gradient(135deg, #FFEB3B, #FBC02D)"; // Yellow (Moderate)
-        } else if (airQualityIndex < 150) {
-            card.style.background = "linear-gradient(135deg, #FF9800, #E65100)"; // Orange (Unhealthy for Sensitive)
-        } else {
-            card.style.background = "linear-gradient(135deg, #F44336, #B71C1C)"; // Red (Unhealthy)
-        }
-    }
-
-    getCardSize() {
-        return 2;
-    }
-}
-
-customElements.define("air-quality-card", AirQualityCard);
+    return html`
+      <div class="card">
+        <!-- Weather Section -->
+        <div class="weather">
+          <ha-icon class="weather-icon" .icon=${weatherIcon}></ha-icon>
+          <span>${weatherState}</span>
+        </div>
+        <div class="row">
+          <ha-icon class="icon" icon="mdi:thermometer"></ha-icon>
+          <span class="value">${outdoorTemp}°C</span>
+          <ha-icon class="icon" icon="mdi:water-percent"></ha-icon>
+          <span class="value">${outdoorHumidity
 
