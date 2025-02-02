@@ -156,3 +156,22 @@ class AirQualityCard extends HTMLElement {
 }
 
 customElements.define("air-quality-card", AirQualityCard);
+
+
+window.customCards = window.customCards || [];
+window.customCards.push({
+    type: "air-quality-card",
+    name: "Air Quality Card",
+    description: "Displays air quality data with weather conditions.",
+    preview: true,
+    documentationURL: "https://github.com/YOUR_GITHUB_USERNAME/lovelace-air-quality-card"
+});
+
+customElements.define("air-quality-card-editor", AirQualityCardEditor);
+
+AirQualityCardConfig = {
+    type: "custom:air-quality-card",
+    name: "Air Quality Card",
+    description: "Displays air quality data with weather conditions.",
+    preview: true
+};
