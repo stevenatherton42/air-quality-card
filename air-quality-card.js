@@ -24,7 +24,6 @@ class AirQualityCard extends HTMLElement {
                     text-align: center;
                     color: white;
                     font-family: Arial, sans-serif;
-                    background: transparent;
                 }
                 .top-row {
                     display: flex;
@@ -34,10 +33,10 @@ class AirQualityCard extends HTMLElement {
                     padding: 10px;
                 }
                 .weather-icon {
-                    font-size: 48px;
+                    font-size: 70px;
                 }
                 .weather-text {
-                    font-size: 24px;
+                    font-size: 36px;
                     font-weight: bold;
                     text-transform: capitalize;
                 }
