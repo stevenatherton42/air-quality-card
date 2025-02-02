@@ -4,10 +4,11 @@ class AirQualityCard extends HTMLElement {
         this.attachShadow({ mode: "open" });
     }
 
-    // Required method for Lovelace
+    // Required for Lovelace UI
     setConfig(config) {
-        if (!config.outdoor_sensor || !config.pm25_sensor || !config.co2_sensor || !config.voc_sensor) {
-            throw new Error("You need to define sensors in the card configuration.");
+        if (!config.weather_entity || !config.outdoor_temp || !config.outdoor_humidity || !config.chance_of_rain ||
+            !config.pollen_count || !config.uv_index || !config.pm25_sensors || !config.temp_sensors || !config.humidity_sensors) {
+            throw new Error("Missing required sensor configurations.");
         }
 
         this.config = config;
@@ -29,6 +30,10 @@ class AirQualityCard extends HTMLElement {
                 .title {
                     font-size: 18px;
                     font-weight: bold;
+                }
+                .weather-icon {
+                    font-size: 48px;
+                    margin-top: 10px;
                 }
                 .value {
                     font-size: 24px;
@@ -55,8 +60,10 @@ class AirQualityCard extends HTMLElement {
                 }
             </style>
             <ha-card class="card" id="card">
-                <div class="title">${config.title || "Air Quality"}</div>
-                <div class="value" id="aqiValue">Loading...</div>
+                <div class="title">Weather & Air Quality</div>
+                <div class="weather-icon"><ha-icon id="weatherIcon"></ha-icon></div>
+                <div id="weatherState" class="value">Loading...</div>
+                <div id="outdoorData"></div>
                 <div class="icons">
                     <div class="icon"><ha-icon icon="mdi:weather-windy"></ha-icon></div>
                     <div class="icon"><ha-icon icon="mdi:molecule-co2"></ha-icon></div>
@@ -66,40 +73,86 @@ class AirQualityCard extends HTMLElement {
         `;
     }
 
-    // Update sensor values
+    // Fetch sensor values
     set hass(hass) {
         if (!this.config) return;
 
-        // Get air quality sensor values
-        const outdoor = parseFloat(hass.states[this.config.outdoor_sensor]?.state) || 0;
-        const pm25 = parseFloat(hass.states[this.config.pm25_sensor]?.state) || 0;
-        const co2 = parseFloat(hass.states[this.config.co2_sensor]?.state) || 0;
-        const voc = parseFloat(hass.states[this.config.voc_sensor]?.state) || 0;
+        // Get weather data
+        const weatherState = hass.states[this.config.weather_entity]?.state || "Unknown";
+        const weatherIcon = this.getWeatherIcon(weatherState);
+        const outdoorTemp = parseFloat(hass.states[this.config.outdoor_temp]?.state) || 0;
+        const outdoorHumidity = parseFloat(hass.states[this.config.outdoor_humidity]?.state) || 0;
+        const chanceOfRain = parseFloat(hass.states[this.config.chance_of_rain]?.state) || 0;
+        const pollenCount = parseFloat(hass.states[this.config.pollen_count]?.state) || 0;
+        const uvIndex = parseFloat(hass.states[this.config.uv_index]?.state) || 0;
 
-        // Calculate an overall air quality index (simple avg for now)
-        let airQualityIndex = (outdoor + pm25 + co2 / 10 + voc / 10) / 4;
+        // Get indoor air quality sensor averages
+        const avgPm25 = this.calculateAverage(hass, this.config.pm25_sensors);
+        const avgTemp = this.calculateAverage(hass, this.config.temp_sensors);
+        const avgHumidity = this.calculateAverage(hass, this.config.humidity_sensors);
 
-        // Set AQI text
-        this.shadowRoot.querySelector("#aqiValue").textContent = `AQI: ${airQualityIndex.toFixed(1)}`;
+        // Update Weather UI
+        this.shadowRoot.querySelector("#weatherIcon").setAttribute("icon", weatherIcon);
+        this.shadowRoot.querySelector("#weatherState").textContent = weatherState;
 
-        // Change background color based on air quality
+        // Update Outdoor Data
+        this.shadowRoot.querySelector("#outdoorData").innerHTML = `
+            🌡️ ${outdoorTemp.toFixed(1)}°C | 💧 ${outdoorHumidity}% | 🌧️ ${chanceOfRain}% | 
+            🤧 ${pollenCount} Pollen | ☀️ UV ${uvIndex}
+        `;
+
+        // Update background color based on PM2.5
         const card = this.shadowRoot.querySelector("#card");
-        if (airQualityIndex < 50) {
+        if (avgPm25 < 50) {
             card.style.background = "linear-gradient(135deg, #4CAF50, #2E7D32)"; // Green (Good)
-        } else if (airQualityIndex < 100) {
+        } else if (avgPm25 < 100) {
             card.style.background = "linear-gradient(135deg, #FFEB3B, #FBC02D)"; // Yellow (Moderate)
-        } else if (airQualityIndex < 150) {
-            card.style.background = "linear-gradient(135deg, #FF9800, #E65100)"; // Orange (Unhealthy for Sensitive)
+        } else if (avgPm25 < 150) {
+            card.style.background = "linear-gradient(135deg, #FF9800, #E65100)"; // Orange (Unhealthy)
         } else {
-            card.style.background = "linear-gradient(135deg, #F44336, #B71C1C)"; // Red (Unhealthy)
+            card.style.background = "linear-gradient(135deg, #F44336, #B71C1C)"; // Red (Hazardous)
         }
     }
 
+    // Convert weather states to mdi icons
+    getWeatherIcon(state) {
+        const icons = {
+            "clear-night": "mdi:weather-night",
+            "cloudy": "mdi:weather-cloudy",
+            "fog": "mdi:weather-fog",
+            "hail": "mdi:weather-hail",
+            "lightning": "mdi:weather-lightning",
+            "lightning-rainy": "mdi:weather-lightning-rainy",
+            "partlycloudy": "mdi:weather-partly-cloudy",
+            "pouring": "mdi:weather-pouring",
+            "rainy": "mdi:weather-rainy",
+            "snowy": "mdi:weather-snowy",
+            "snowy-rainy": "mdi:weather-snowy-rainy",
+            "sunny": "mdi:weather-sunny",
+            "windy": "mdi:weather-windy",
+            "windy-variant": "mdi:weather-windy-variant"
+        };
+        return icons[state.toLowerCase()] || "mdi:weather-cloudy";
+    }
+
+    // Calculate average of multiple sensors
+    calculateAverage(hass, sensors) {
+        if (!sensors || sensors.length === 0) return 0;
+        let sum = 0;
+        let count = 0;
+        sensors.forEach(sensor => {
+            const value = parseFloat(hass.states[sensor]?.state);
+            if (!isNaN(value)) {
+                sum += value;
+                count++;
+            }
+        });
+        return count > 0 ? sum / count : 0;
+    }
+
     getCardSize() {
-        return 2;
+        return 3;
     }
 }
 
-// Register custom element
 customElements.define("air-quality-card", AirQualityCard);
-
